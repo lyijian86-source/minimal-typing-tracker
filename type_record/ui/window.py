@@ -13,7 +13,6 @@ from type_record.storage import DailyCountStore
 from .dialogs import DialogMixin
 from .formatting import format_duration, format_last_input, format_weekly_delta, today_date_str
 from .theme import (
-    ACCENT as _ACCENT,
     ACCENT_DEEP as _ACCENT_DEEP,
     ACCENT_SOFT as _ACCENT_SOFT,
     BG as _BG,

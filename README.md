@@ -1,169 +1,113 @@
 # TypeLedger
 
-**English** | [简体中文](./README.zh-CN.md)
+[Simplified Chinese](./README.zh-CN.md) | **English**
 
-TypeLedger is a privacy-first Windows desktop typing tracker for people who want a calm, local, reliable view of daily output, session rhythm, hourly activity, and weekly efficiency.
+TypeLedger is a privacy-first Windows desktop typing tracker. It helps you understand daily output, session rhythm, hourly activity, and weekly efficiency without storing what you typed.
 
-It runs in the background, lives in the system tray, stores aggregate metrics only, and never stores raw typed content.
+It is designed for writers, developers, researchers, students, and knowledge workers who want a calm local record of their typing activity.
 
-> GitHub repository: `Yijian6/type-ledger`  
-> Internal data paths still use `TypeRecord` for compatibility.
+> Repository: `Yijian6/type-ledger`
+> Data compatibility: internal data paths still use `TypeRecord`
 
-## Quick Start
+## Why Use It
 
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python app.py
-```
-
-After launch, the app can stay in the system tray and keep tracking in the background.
-
-## Why This Name
-
-`TypeLedger` is the public name for this project because it is:
-
-- easier to remember than a generic `tracker` name
-- more searchable than abstract product names
-- aligned with the product's tone: measured, private, trustworthy
-- broad enough for future analytics features without sounding gimmicky
-
-Other strong alternatives:
-
-- `type-pulse`
-- `key-ledger`
-- `typing-ledger`
-
-## What It Does
-
-TypeLedger helps you answer practical questions like:
+TypeLedger answers practical questions:
 
 - Did I actually write today?
-- Was this week productive or just busy?
-- Did output improve because I worked longer or because I worked better?
-- What time of day do I usually type the most?
-
-It is designed for long-running personal use on Windows, not for text capture.
-
-## Who It Is For
-
-- writers who want a lightweight local writing ledger
-- knowledge workers who care about daily output rhythm
-- bilingual users who type in Chinese and English
-- privacy-sensitive users who do not want cloud logging
-
-## Core Capabilities
-
-| Area | What you get |
-| --- | --- |
-| Daily tracking | Net count, keyboard typed, pasted volume, backspace count, estimated accuracy |
-| Session analytics | Session duration, session typed volume, live speed, recent activity |
-| Trend views | 30-day trend, hourly activity view, full history dialog |
-| Weekly insight | Weekly output, active time, active efficiency, comparison views |
-| UX | Tray-first workflow, bilingual UI, scroll-safe dashboard, settings dialog |
-| Reliability | Backup recovery, malformed data sanitization, health report output |
-| Privacy | Aggregate metrics only, no raw typed text storage |
+- Is this week more productive than last week?
+- Did output improve because I worked longer or because I worked more efficiently?
+- Which hours of the day are usually my most active?
+- Am I building a consistent writing or coding rhythm?
 
 ## Privacy Model
 
-TypeLedger stores:
+TypeLedger only stores aggregate numbers.
 
-- counts
-- timestamps
-- session durations
-- hourly totals
-- weekly aggregates
+It records counts such as typed characters, pasted characters, backspaces, session length, hourly totals, and weekly summaries. It does not save raw typed text, clipboard content, window titles, website URLs, file names, screenshots, or keystroke sequences.
 
-TypeLedger does **not** store:
+The app runs locally on your Windows machine. No cloud account is required.
 
-- raw typed text
-- clipboard text content
-- document content
-- application content
+## Download And Run
 
-Paste actions affect metrics, but pasted text itself is never written to disk.
-
-## Metric Definitions
-
-| Metric | Meaning |
-| --- | --- |
-| Net count | Main daily count. Includes typed input and paste, and may subtract backspace depending on settings. |
-| Keyboard typed | Direct keyboard input only, excluding paste. |
-| Pasted | Volume inferred from paste actions. |
-| Accuracy | Estimate based on kept keyboard input relative to correction behavior. |
-| Current speed | Keyboard characters typed during the last 60 seconds. |
-| Peak WPM | Estimated peak speed using `5 chars = 1 word`. |
-| Weekly efficiency | Weekly output divided by active session minutes. |
-
-## Accuracy Notes
-
-This project uses a global keyboard hook, so its strongest signal is **input behavior**, not perfectly reconstructed final text.
-
-Important limitations:
-
-- IME workflows such as Chinese pinyin composition are tracked consistently at the key-action level, but may not exactly match committed text.
-- Backspace is not always a perfect inverse of prior input across editors and selection flows.
-- Elevated applications may partially block input visibility for a normal-permission process.
-
-The product is intentionally optimized for stable aggregate measurement rather than exact text reconstruction.
-
-## Screens You Can Show in the README
-
-Recommended future screenshots:
-
-1. Main dashboard
-2. Weekly efficiency detail dialog
-3. Hourly activity dialog
-4. Tray menu
-5. Settings dialog
-
-Recommended asset folder:
+The portable Windows build is:
 
 ```text
-assets/readme/
+TypeLedger-windows-portable.zip
 ```
 
-Suggested filenames:
+To use it:
 
-- `dashboard-en.png`
-- `dashboard-zh.png`
-- `weekly-efficiency.png`
-- `hourly-view.png`
-- `tray-menu.png`
-- `settings-dialog.png`
+1. Download the zip from GitHub Releases.
+2. Extract it to a folder you trust.
+3. Run `TypeLedger.exe`.
+4. Find the tray icon if the main window starts hidden.
 
-## Install
+The current build is unsigned. Windows SmartScreen or antivirus tools may warn because the app uses a global keyboard hook to count keystrokes. This is expected for local input trackers. TypeLedger does not store typed content.
+
+## Features
+
+| Area | What You Get |
+| --- | --- |
+| Daily tracking | Net count, keyboard input, pasted characters, backspaces, accuracy estimate |
+| Session rhythm | Current session, last session, session length, recent activity |
+| Speed estimate | CPM and WPM estimates based on recent keyboard input |
+| Weekly efficiency | Weekly output, active time, active efficiency, comparison with last week and target |
+| History | Daily records, 30-day trend, hourly distribution, CSV export |
+| Tray app | Runs in the background, supports tray menu actions |
+| Localization | English and Simplified Chinese UI |
+
+## Data Location
+
+TypeLedger stores local data under:
+
+```text
+%APPDATA%\TypeRecord\
+```
+
+The folder name remains `TypeRecord` for compatibility with earlier versions.
+
+Main files:
+
+- `data\daily_counts.json`
+- `config\settings.json`
+- `data\logs\type_record.log`
+
+## Run From Source
+
+Requirements:
+
+- Windows
+- Python 3.11+
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-## Run
-
-```powershell
 python app.py
 ```
 
-## Release Status
-
-Current state:
-
-- source app is usable
-- tray workflow is implemented
-- dashboard, weekly efficiency, history, and settings flows are working
-- tests cover storage, metrics, tray labels, and key UI smoke paths
-- packaged Windows release flow is not finalized yet
-
-## Development
+## Build Windows Portable App
 
 Install development dependencies:
 
 ```powershell
-pip install -r requirements-dev.txt
+.venv\Scripts\pip install -r requirements-dev.txt
 ```
+
+Build:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1
+```
+
+Outputs:
+
+```text
+dist\TypeLedger\TypeLedger.exe
+dist\TypeLedger-windows-portable.zip
+```
+
+## Development Checks
 
 Run tests:
 
@@ -171,98 +115,20 @@ Run tests:
 python -m pytest
 ```
 
-Optional syntax smoke check:
+Run linting if needed:
 
 ```powershell
-python -m compileall type_record tests
+ruff check .
 ```
 
-## Data Storage
+## Release Notes For Users
 
-Primary paths:
+- This is a local Windows desktop app.
+- It counts aggregate typing activity only.
+- It does not store what you type.
+- The portable build is currently unsigned.
+- Some security tools may warn because keyboard counting requires a global keyboard hook.
 
-```text
-%APPDATA%\TypeRecord\data\daily_counts.json
-%APPDATA%\TypeRecord\config\settings.json
-```
+## License
 
-Fallback path when `%APPDATA%` is not writable:
-
-```text
-<project>\data\
-```
-
-Related durability files:
-
-- `daily_counts.json.bak`
-- `health_report.json`
-
-## Reliability Features
-
-- backup JSON fallback
-- malformed record filtering
-- invalid timestamp / day / hour sanitization
-- health report generation
-- session flush on timeout and shutdown
-- UI smoke tests for key window flows
-
-## Project Structure
-
-```text
-app.py
-requirements.txt
-requirements-dev.txt
-type_record/
-  app.py
-  config.py
-  counter.py
-  charting.py
-  metrics.py
-  storage.py
-  tray.py
-  ui/
-    dialogs.py
-    formatting.py
-    theme.py
-    widgets.py
-    window.py
-tests/
-```
-
-## Roadmap
-
-Near-term priorities:
-
-1. Finish interaction consistency and polish
-2. Add polished screenshots and release-facing assets
-3. Prepare packaging and distribution workflow
-4. Improve onboarding and metric explanation quality
-
-Potential next-stage improvements:
-
-- packaged Windows release
-- richer weekly comparisons
-- stronger session review tools
-- clearer IME-related explanation layer
-
-## FAQ
-
-### Does it store what I type?
-
-No. It stores counts, timestamps, durations, and aggregate metrics only.
-
-### Is this accurate for Chinese IME input?
-
-It is consistent at the key-action level, but it is not guaranteed to exactly match final committed characters in every IME workflow.
-
-### Does paste count?
-
-Yes. Paste contributes to total volume metrics, but pasted text itself is never stored.
-
-### Can I use it as a precise text-production meter?
-
-Not perfectly. It is better understood as a stable input-behavior tracker than a final-text reconstruction tool.
-
-## Status
-
-The product already has meaningful behavior and a real desktop workflow, but it is still being actively refined across UX, packaging, and public presentation.
+No license has been declared yet. Add a license before distributing broadly or accepting external contributions.
