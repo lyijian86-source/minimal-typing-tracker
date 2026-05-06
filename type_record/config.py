@@ -17,6 +17,8 @@ class AppConfig:
     tray_tooltip: str = "Type Record"
     start_hidden_to_tray: bool = True
     language: str = "en"
+    weekly_output_target: int = 10000
+    weekly_active_efficiency_target: float = 35.0
 
     @property
     def data_file(self) -> Path:
@@ -95,6 +97,8 @@ class AppConfig:
         self.refresh_interval_ms = self._coerce_int(self.refresh_interval_ms, defaults.refresh_interval_ms, minimum=100, maximum=5000)
         self.session_timeout_seconds = self._coerce_int(self.session_timeout_seconds, defaults.session_timeout_seconds, minimum=60, maximum=86400)
         self.language = self.language if self.language in {"en", "zh"} else defaults.language
+        self.weekly_output_target = self._coerce_int(self.weekly_output_target, defaults.weekly_output_target, minimum=0, maximum=1_000_000_000)
+        self.weekly_active_efficiency_target = self._coerce_float(self.weekly_active_efficiency_target, defaults.weekly_active_efficiency_target, minimum=0.0, maximum=100000.0)
 
     def _coerce_text(self, value: object, default: str) -> str:
         return value if isinstance(value, str) and value.strip() else default
@@ -113,6 +117,13 @@ class AppConfig:
     def _coerce_int(self, value: object, default: int, minimum: int, maximum: int) -> int:
         try:
             parsed = int(value)
+        except (TypeError, ValueError):
+            return default
+        return max(minimum, min(maximum, parsed))
+
+    def _coerce_float(self, value: object, default: float, minimum: float, maximum: float) -> float:
+        try:
+            parsed = float(value)
         except (TypeError, ValueError):
             return default
         return max(minimum, min(maximum, parsed))

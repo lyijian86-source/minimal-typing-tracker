@@ -48,22 +48,26 @@ class TrayController:
 
     def refresh_language(self, language: str) -> None:
         self.language = language
+        self.tooltip = tr(language, "app_label")
         self.stop()
         self._build_and_run()
 
     def _build_and_run(self) -> None:
         menu = pystray.Menu(
-            pystray.MenuItem(tr(self.language, "show_window"), self._handle_show, default=True),
-            pystray.MenuItem(tr(self.language, "open_history"), self._handle_open_history),
-            pystray.MenuItem(tr(self.language, "settings"), self._handle_open_settings),
-            pystray.MenuItem(tr(self.language, "export_csv"), self._handle_export_csv),
-            pystray.MenuItem(tr(self.language, "reset_today"), self._handle_reset_today),
-            pystray.MenuItem(tr(self.language, "open_data_folder"), self._handle_open_data_folder),
-            pystray.MenuItem(tr(self.language, "exit"), self._handle_exit),
+            pystray.MenuItem(self._menu_label("show_window"), self._handle_show, default=True),
+            pystray.MenuItem(self._menu_label("open_history"), self._handle_open_history),
+            pystray.MenuItem(self._menu_label("settings"), self._handle_open_settings),
+            pystray.MenuItem(self._menu_label("export_csv"), self._handle_export_csv),
+            pystray.MenuItem(self._menu_label("reset_today"), self._handle_reset_today),
+            pystray.MenuItem(self._menu_label("open_data_folder"), self._handle_open_data_folder),
+            pystray.MenuItem(self._menu_label("exit"), self._handle_exit),
         )
         self._icon = pystray.Icon("type_record", self._build_icon_image(), self.tooltip, menu)
         self._thread = Thread(target=self._icon.run, daemon=True)
         self._thread.start()
+
+    def _menu_label(self, key: str) -> str:
+        return tr(self.language, key)
 
     def _handle_show(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
         _ = (icon, item)
@@ -94,6 +98,9 @@ class TrayController:
         self.on_exit()
 
     def _build_icon_image(self) -> Image.Image:
-        asset_path = Path(__file__).resolve().parent.parent / "assets" / "tray_icon.png"
+        assets_dir = Path(__file__).resolve().parent.parent / "assets"
+        asset_path = assets_dir / "tray_icon.png"
+        if not asset_path.exists():
+            asset_path = assets_dir / "app_icon.png"
         with Image.open(asset_path) as image:
             return image.convert("RGBA").copy()

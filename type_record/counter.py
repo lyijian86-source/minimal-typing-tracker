@@ -9,6 +9,7 @@ from threading import Lock
 import keyboard
 
 from type_record.config import AppConfig
+from type_record.metrics import calculate_accuracy, calculate_keyboard_typed, calculate_peak_wpm_from_cpm
 from type_record.storage import DailyCountStore
 
 CF_UNICODETEXT = 13
@@ -90,17 +91,23 @@ class KeyboardCounter:
         with self._lock:
             now = self._now()
             snapshot = self._reset_session_if_day_changed(now)
+
+            # A session should become durable when it times out, not only when
+            # the next key arrives or the app exits. This keeps future session
+            # analysis trustworthy during long background runs.
+            if snapshot is None and self._is_session_expired(now):
+                snapshot = self._snapshot_current_session(self._last_input_at or now)
+                self._clear_session_state()
+
             self._trim_recent_events(now)
-            session_typed_count = max(0, self._session_positive_count - self._session_pasted_count)
+            session_typed_count = calculate_keyboard_typed(self._session_positive_count, self._session_pasted_count)
             session_is_active = self._is_session_active(now)
             session_duration_seconds = 0
             if self._session_started_at is not None:
                 session_end = now if session_is_active else self._last_input_at
                 if session_end is not None:
                     session_duration_seconds = max(0, int((session_end - self._session_started_at).total_seconds()))
-            accuracy = 0.0
-            if session_typed_count > 0:
-                accuracy = max(0, session_typed_count - self._session_backspace_count) / session_typed_count
+            accuracy = calculate_accuracy(session_typed_count, self._session_backspace_count)
             stats = {
                 "session_is_active": session_is_active,
                 "session_duration_seconds": session_duration_seconds,
@@ -167,7 +174,7 @@ class KeyboardCounter:
                 self._session_backspace_count += backspace_count
             self._trim_recent_events(now)
             if positive_count > 0 and count_for_speed:
-                peak_wpm = len(self._recent_positive_events) / 5.0
+                peak_wpm = calculate_peak_wpm_from_cpm(len(self._recent_positive_events))
 
         if snapshot is not None:
             self.store.record_session(**snapshot)
@@ -232,7 +239,7 @@ class KeyboardCounter:
     def _snapshot_current_session(self, ended_at: datetime) -> dict | None:
         if self._session_started_at is None:
             return None
-        keyboard_typed = max(0, self._session_positive_count - self._session_pasted_count)
+        keyboard_typed = calculate_keyboard_typed(self._session_positive_count, self._session_pasted_count)
         if keyboard_typed <= 0 and self._session_pasted_count <= 0 and self._session_backspace_count <= 0 and self._session_delta == 0:
             return None
         return {

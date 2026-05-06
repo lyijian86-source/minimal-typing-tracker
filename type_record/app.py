@@ -18,9 +18,10 @@ from type_record.ui import CounterWindow
 
 def main() -> None:
     config = AppConfig.load()
+    app_name = tr(config.language, "app_label")
     instance_guard = _SingleInstanceGuard.acquire("Local\\MinimalTypingTracker.TypeRecord")
     if instance_guard is None:
-        messagebox.showinfo(config.app_name, tr(config.language, "already_running"))
+        messagebox.showinfo(app_name, tr(config.language, "already_running"))
         return
 
     store = DailyCountStore(config.data_file)
@@ -44,7 +45,7 @@ def main() -> None:
         logger.exception("Failed to start keyboard listener")
         message = tr(config.language, "error_start_listener", error=exc)
         try:
-            messagebox.showerror(config.app_name, message)
+            messagebox.showerror(app_name, message)
         finally:
             raise SystemExit(1) from exc
 
@@ -112,7 +113,7 @@ def main() -> None:
         window.call_in_main_thread(window.destroy)
 
     tray = TrayController(
-        tooltip=config.tray_tooltip,
+        tooltip=tr(config.language, "app_label"),
         language=config.language,
         on_show=show_window,
         on_open_history=open_history,
