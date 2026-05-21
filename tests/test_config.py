@@ -15,6 +15,7 @@ def test_config_load_normalizes_invalid_settings(tmp_path, monkeypatch) -> None:
                 "app_name": "",
                 "count_space": "false",
                 "count_enter": "yes",
+                "count_clipboard_changes": "off",
                 "backspace_decrements": "not-a-bool",
                 "refresh_interval_ms": 1,
                 "session_timeout_seconds": 999999,
@@ -32,6 +33,7 @@ def test_config_load_normalizes_invalid_settings(tmp_path, monkeypatch) -> None:
     assert config.app_name == "TypeLedger"
     assert config.count_space is False
     assert config.count_enter is True
+    assert config.count_clipboard_changes is False
     assert config.backspace_decrements is True
     assert config.refresh_interval_ms == 100
     assert config.session_timeout_seconds == 86400
@@ -46,6 +48,7 @@ def test_config_save_writes_primary_and_backup(tmp_path, monkeypatch) -> None:
     config = AppConfig.load()
     config.language = "zh"
     config.count_enter = True
+    config.count_clipboard_changes = False
     config.weekly_output_target = 12345
     config.weekly_active_efficiency_target = 42.5
 
@@ -55,6 +58,7 @@ def test_config_save_writes_primary_and_backup(tmp_path, monkeypatch) -> None:
     backup = json.loads(config.settings_backup_file.read_text(encoding="utf-8"))
     assert saved["language"] == "zh"
     assert saved["count_enter"] is True
+    assert saved["count_clipboard_changes"] is False
     assert saved["weekly_output_target"] == 12345
     assert saved["weekly_active_efficiency_target"] == 42.5
     assert backup == saved

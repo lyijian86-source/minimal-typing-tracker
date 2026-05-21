@@ -70,6 +70,7 @@ class DialogMixin:
 
         count_space = tk.BooleanVar(value=self.config.count_space)
         count_enter = tk.BooleanVar(value=self.config.count_enter)
+        count_clipboard_changes = tk.BooleanVar(value=self.config.count_clipboard_changes)
         backspace_decrements = tk.BooleanVar(value=self.config.backspace_decrements)
         start_hidden = tk.BooleanVar(value=self.config.start_hidden_to_tray)
         language_mode = tk.StringVar(value=self.config.language)
@@ -81,9 +82,11 @@ class DialogMixin:
         for text, var in [
             (tr(self.config.language, "count_space"), count_space),
             (tr(self.config.language, "count_enter"), count_enter),
+            (tr(self.config.language, "count_clipboard_changes"), count_clipboard_changes),
             (tr(self.config.language, "backspace_subtracts"), backspace_decrements),
         ]:
             tk.Checkbutton(box, text=text, variable=var, bg=CARD_INNER, activebackground=CARD_INNER, fg=TEXT_SECONDARY, activeforeground=TEXT_SECONDARY, selectcolor=CARD, font=(FONT_UI, 10), anchor="w", padx=2, pady=4, relief=tk.FLAT).pack(fill=tk.X)
+        tk.Label(box, text=tr(self.config.language, "count_clipboard_changes_hint"), bg=CARD_INNER, fg=TEXT_TERTIARY, font=(FONT_UI, 8), justify=tk.LEFT, wraplength=430).pack(anchor=tk.W, pady=(0, 4))
         tk.Label(settings_content, text=tr(self.config.language, "app_preferences"), bg=CARD, fg=ACCENT_DEEP, font=(FONT_UI, 8, "bold")).pack(anchor=tk.W, pady=(14, 8))
         lang = self._subcard(settings_content)
         lang.pack(fill=tk.X)
@@ -103,6 +106,7 @@ class DialogMixin:
         def save_settings() -> None:
             self.config.count_space = bool(count_space.get())
             self.config.count_enter = bool(count_enter.get())
+            self.config.count_clipboard_changes = bool(count_clipboard_changes.get())
             self.config.backspace_decrements = bool(backspace_decrements.get())
             self.config.start_hidden_to_tray = bool(start_hidden.get())
             changed = self.config.language != language_mode.get()

@@ -41,3 +41,21 @@ def test_expired_session_is_saved_during_live_refresh() -> None:
     assert store.sessions[0]["ended_at"] == datetime(2026, 4, 23, 9, 0, 20)
     assert store.sessions[0]["positive_count"] == 2
     assert store.sessions[0]["delta"] == 2
+
+
+def test_clipboard_change_counts_text_as_paste_without_speed() -> None:
+    store = FakeStore()
+    config = AppConfig(count_clipboard_changes=True)
+    counter = KeyboardCounter(config=config, store=store)
+    now = datetime(2026, 5, 21, 10, 0, 0)
+    counter._now = lambda: now
+    counter._get_clipboard_text = lambda: "voice input"
+
+    counter._record_clipboard_change(sequence=10)
+    counter._record_clipboard_change(sequence=10)
+
+    assert len(store.keys) == 1
+    assert store.keys[0]["delta"] == 11
+    assert store.keys[0]["positive_count"] == 11
+    assert store.keys[0]["pasted_count"] == 11
+    assert counter.get_live_stats()["recent_cpm"] == 0

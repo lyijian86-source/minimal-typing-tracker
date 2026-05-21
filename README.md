@@ -64,7 +64,7 @@ It is not a writing app, a cloud analytics product, or an employee monitoring to
 
 | Area | What You Get |
 | --- | --- |
-| Today | Net count, keyboard input, pasted characters, backspaces, accuracy estimate |
+| Today | Net count, keyboard input, clipboard text changes, pasted characters, backspaces, accuracy estimate |
 | Sessions | Current session, last session, session length, recent activity |
 | Speed | CPM and WPM estimates based on recent keyboard input |
 | Weekly efficiency | Weekly output, active time, active efficiency, comparison with last week and target |
@@ -79,7 +79,7 @@ TypeLedger stores aggregate numbers only.
 | Stored | Not Stored |
 | --- | --- |
 | Character counts | Raw typed text |
-| Paste counts | Clipboard content |
+| Clipboard text length | Clipboard content |
 | Backspace counts | Keystroke sequences |
 | Session duration | Window titles |
 | Hourly and weekly summaries | Website URLs, file names, screenshots |

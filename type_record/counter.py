@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import ctypes
+from ctypes import wintypes
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from threading import Lock
+from threading import Event, Lock, Thread
 
 import keyboard
 
@@ -13,6 +14,7 @@ from type_record.metrics import calculate_accuracy, calculate_keyboard_typed, ca
 from type_record.storage import DailyCountStore
 
 CF_UNICODETEXT = 13
+CLIPBOARD_POLL_INTERVAL_SECONDS = 0.75
 
 
 IGNORED_KEYS = {
@@ -54,6 +56,8 @@ class KeyboardCounter:
 
     def __post_init__(self) -> None:
         self._hook = None
+        self._clipboard_thread: Thread | None = None
+        self._clipboard_stop = Event()
         self._lock = Lock()
         self._session_started_at: datetime | None = None
         self._session_day_key: str | None = None
@@ -63,13 +67,17 @@ class KeyboardCounter:
         self._session_backspace_count = 0
         self._last_input_at: datetime | None = None
         self._recent_positive_events: deque[datetime] = deque()
+        self._last_clipboard_sequence: int | None = None
+        self._last_counted_clipboard_sequence: int | None = None
 
     def start(self) -> None:
         if self._hook is not None:
             return
         self._hook = keyboard.on_press(self._handle_key_event, suppress=False)
+        self._start_clipboard_monitor()
 
     def stop(self) -> None:
+        self._stop_clipboard_monitor()
         if self._hook is None:
             return
         try:
@@ -293,10 +301,60 @@ class KeyboardCounter:
         if not self._is_paste_shortcut(key_name):
             return 0
 
+        sequence = self._get_clipboard_sequence_number()
+        return self._resolve_clipboard_text_count(sequence)
+
+    def _start_clipboard_monitor(self) -> None:
+        if self._clipboard_thread is not None:
+            return
+        self._clipboard_stop.clear()
+        self._last_clipboard_sequence = self._get_clipboard_sequence_number()
+        self._clipboard_thread = Thread(target=self._monitor_clipboard_changes, daemon=True)
+        self._clipboard_thread.start()
+
+    def _stop_clipboard_monitor(self) -> None:
+        if self._clipboard_thread is None:
+            return
+        self._clipboard_stop.set()
+        self._clipboard_thread.join(timeout=1.0)
+        self._clipboard_thread = None
+
+    def _monitor_clipboard_changes(self) -> None:
+        while not self._clipboard_stop.wait(CLIPBOARD_POLL_INTERVAL_SECONDS):
+            try:
+                sequence = self._get_clipboard_sequence_number()
+                if sequence is None:
+                    continue
+                should_count = False
+                with self._lock:
+                    if sequence != self._last_clipboard_sequence:
+                        self._last_clipboard_sequence = sequence
+                        should_count = self.config.count_clipboard_changes
+                if should_count:
+                    self._record_clipboard_change(sequence)
+            except Exception:
+                # Clipboard ownership is inherently racy on Windows. A failed
+                # read should never stop keyboard counting or crash the app.
+                continue
+
+    def _record_clipboard_change(self, sequence: int | None) -> None:
+        paste_count = self._resolve_clipboard_text_count(sequence)
+        if paste_count <= 0:
+            return
+        self._record_input(delta=paste_count, positive_count=paste_count, pasted_count=paste_count, backspace_count=0, count_for_speed=False)
+
+    def _resolve_clipboard_text_count(self, sequence: int | None) -> int:
         clipboard_text = self._get_clipboard_text()
         if not clipboard_text:
             return 0
-        return self._count_pasted_characters(clipboard_text)
+        paste_count = self._count_pasted_characters(clipboard_text)
+        if paste_count <= 0:
+            return 0
+        with self._lock:
+            if sequence is not None and sequence == self._last_counted_clipboard_sequence:
+                return 0
+            self._last_counted_clipboard_sequence = sequence
+        return paste_count
 
     def _is_paste_shortcut(self, key_name: str) -> bool:
         ctrl_pressed = self._is_pressed("ctrl", "left ctrl", "right ctrl")
@@ -311,9 +369,19 @@ class KeyboardCounter:
     def _is_pressed(self, *keys: str) -> bool:
         return any(keyboard.is_pressed(key) for key in keys)
 
+    def _get_clipboard_sequence_number(self) -> int | None:
+        try:
+            sequence = ctypes.windll.user32.GetClipboardSequenceNumber()
+        except AttributeError:
+            return None
+        return int(sequence) if sequence else None
+
     def _get_clipboard_text(self) -> str | None:
         user32 = ctypes.windll.user32
         kernel32 = ctypes.windll.kernel32
+        kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+        kernel32.GlobalLock.restype = wintypes.LPVOID
+        kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
         if not user32.IsClipboardFormatAvailable(CF_UNICODETEXT):
             return None
         if not user32.OpenClipboard(None):

@@ -11,6 +11,7 @@ class AppConfig:
     app_name: str = "TypeLedger"
     count_space: bool = True
     count_enter: bool = False
+    count_clipboard_changes: bool = True
     backspace_decrements: bool = True
     refresh_interval_ms: int = 300
     session_timeout_seconds: int = 300
@@ -92,6 +93,7 @@ class AppConfig:
         self.tray_tooltip = self._coerce_text(self.tray_tooltip, defaults.tray_tooltip)
         self.count_space = self._coerce_bool(self.count_space, defaults.count_space)
         self.count_enter = self._coerce_bool(self.count_enter, defaults.count_enter)
+        self.count_clipboard_changes = self._coerce_bool(self.count_clipboard_changes, defaults.count_clipboard_changes)
         self.backspace_decrements = self._coerce_bool(self.backspace_decrements, defaults.backspace_decrements)
         self.start_hidden_to_tray = self._coerce_bool(self.start_hidden_to_tray, defaults.start_hidden_to_tray)
         self.refresh_interval_ms = self._coerce_int(self.refresh_interval_ms, defaults.refresh_interval_ms, minimum=100, maximum=5000)
