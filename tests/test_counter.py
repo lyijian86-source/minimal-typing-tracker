@@ -59,3 +59,18 @@ def test_clipboard_change_counts_text_as_paste_without_speed() -> None:
     assert store.keys[0]["positive_count"] == 11
     assert store.keys[0]["pasted_count"] == 11
     assert counter.get_live_stats()["recent_cpm"] == 0
+
+
+def test_clipboard_update_event_counts_new_sequence_once() -> None:
+    store = FakeStore()
+    config = AppConfig(count_clipboard_changes=True)
+    counter = KeyboardCounter(config=config, store=store)
+    counter._last_clipboard_sequence = 1
+    counter._get_clipboard_sequence_number = lambda: 2
+    counter._get_clipboard_text = lambda: "spoken text"
+
+    counter._handle_clipboard_update()
+    counter._handle_clipboard_update()
+
+    assert len(store.keys) == 1
+    assert store.keys[0]["pasted_count"] == 11

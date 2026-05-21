@@ -32,6 +32,8 @@ def test_counter_window_builds_dashboard_layout(tmp_path) -> None:
         assert window._history_preview_inner is not None
         assert window.weekly_output_var.get()
         assert window.weekly_efficiency_var.get()
+        assert _find_labels_with_text(window.root, tr("zh", "pasted_today"))
+        assert not _find_labels_with_text(window.root, tr("zh", "session_length"))
     finally:
         window.destroy()
 

@@ -63,6 +63,8 @@ class CounterWindow(DialogMixin, WidgetFactoryMixin):
         self.session_typed_var = tk.StringVar(value="0")
         self.session_accuracy_var = tk.StringVar(value="0%")
         self.typed_today_var = tk.StringVar(value="0")
+        self.pasted_today_var = tk.StringVar(value="0")
+        self.clipboard_status_var = tk.StringVar(value="")
         self.accuracy_var = tk.StringVar(value="0%")
         self.cpm_var = tk.StringVar(value="0")
         self.peak_wpm_var = tk.StringVar(value="0.0")
@@ -303,25 +305,25 @@ class CounterWindow(DialogMixin, WidgetFactoryMixin):
         hero_top = tk.Frame(hero, bg=_CARD_ACCENT)
         hero_top.pack(fill=tk.X)
         tk.Label(hero_top, text=tr(self.config.language, "today"), bg=_CARD_ACCENT, fg=_ACCENT_SOFT, font=(_FONT_UI, 8, "bold")).pack(side=tk.LEFT)
-        tk.Label(hero_top, textvariable=self.session_var, bg=_CARD_ACCENT, fg="#A9B4A8", font=(_FONT_UI, 9)).pack(side=tk.RIGHT)
+        tk.Label(hero_top, textvariable=self.clipboard_status_var, bg=_CARD_ACCENT, fg="#A9B4A8", font=(_FONT_UI, 9)).pack(side=tk.RIGHT)
 
         number_row = tk.Frame(hero, bg=_CARD_ACCENT)
         number_row.pack(fill=tk.X, pady=(12, 0))
         tk.Label(number_row, textvariable=self.count_var, bg=_CARD_ACCENT, fg=_TEXT_ON_ACCENT, font=(_FONT_NUMERIC, 92)).pack(side=tk.LEFT)
         tk.Label(number_row, textvariable=self.detail_var, bg=_CARD_ACCENT, fg="#C8CDBF", font=(_FONT_UI, 10), justify=tk.LEFT, wraplength=280).pack(side=tk.LEFT, padx=(22, 0), anchor=tk.S)
 
-        session_meta = tk.Frame(hero, bg=_CARD_ACCENT)
-        session_meta.pack(fill=tk.X, pady=(18, 0))
+        input_meta = tk.Frame(hero, bg=_CARD_ACCENT)
+        input_meta.pack(fill=tk.X, pady=(18, 0))
         for column in range(3):
-            session_meta.grid_columnconfigure(column, weight=1)
+            input_meta.grid_columnconfigure(column, weight=1)
         for column, (label, var) in enumerate(
             (
-                (tr(self.config.language, "session_length"), self.session_length_var),
-                (tr(self.config.language, "session_typed"), self.session_typed_var),
-                (tr(self.config.language, "session_accuracy"), self.session_accuracy_var),
+                (tr(self.config.language, "typed_today"), self.typed_today_var),
+                (tr(self.config.language, "pasted_today"), self.pasted_today_var),
+                (tr(self.config.language, "net_today"), self.count_var),
             )
         ):
-            self._hero_chip(session_meta, label, var).grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else 8, 0))
+            self._hero_chip(input_meta, label, var).grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else 8, 0))
 
     def _build_weekly_summary(self, parent: tk.Widget) -> None:
         weekly = tk.Frame(parent, bg=_CARD, highlightthickness=1, highlightbackground=_BORDER, padx=26, pady=24)
@@ -449,6 +451,8 @@ class CounterWindow(DialogMixin, WidgetFactoryMixin):
         self.session_typed_var.set(str(live["session_positive_count"]))
         self.session_accuracy_var.set(f"{live['session_accuracy'] * 100:.1f}%")
         self.typed_today_var.set(str(summary["typed_today"]))
+        self.pasted_today_var.set(str(summary["pasted_today"]))
+        self.clipboard_status_var.set(tr(self.config.language, "clipboard_monitor_on" if self.config.count_clipboard_changes else "clipboard_monitor_off"))
         self.accuracy_var.set(f"{summary['accuracy'] * 100:.1f}%")
         self.cpm_var.set(tr(self.config.language, "cpm", count=live["recent_cpm"]))
         self.peak_wpm_var.set(f"{summary['peak_wpm_today']:.1f}")

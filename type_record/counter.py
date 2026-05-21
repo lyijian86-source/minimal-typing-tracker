@@ -14,7 +14,30 @@ from type_record.metrics import calculate_accuracy, calculate_keyboard_typed, ca
 from type_record.storage import DailyCountStore
 
 CF_UNICODETEXT = 13
-CLIPBOARD_POLL_INTERVAL_SECONDS = 0.75
+CLIPBOARD_POLL_INTERVAL_SECONDS = 0.2
+HWND_MESSAGE = -3
+WM_CLIPBOARDUPDATE = 0x031D
+WM_CLOSE = 0x0010
+WM_DESTROY = 0x0002
+
+LRESULT = ctypes.c_ssize_t
+WNDPROC_FACTORY = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)
+WNDPROC = WNDPROC_FACTORY(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+
+
+class WNDCLASSW(ctypes.Structure):
+    _fields_ = [
+        ("style", wintypes.UINT),
+        ("lpfnWndProc", WNDPROC),
+        ("cbClsExtra", ctypes.c_int),
+        ("cbWndExtra", ctypes.c_int),
+        ("hInstance", wintypes.HINSTANCE),
+        ("hIcon", wintypes.HANDLE),
+        ("hCursor", wintypes.HANDLE),
+        ("hbrBackground", wintypes.HANDLE),
+        ("lpszMenuName", wintypes.LPCWSTR),
+        ("lpszClassName", wintypes.LPCWSTR),
+    ]
 
 
 IGNORED_KEYS = {
@@ -69,6 +92,8 @@ class KeyboardCounter:
         self._recent_positive_events: deque[datetime] = deque()
         self._last_clipboard_sequence: int | None = None
         self._last_counted_clipboard_sequence: int | None = None
+        self._clipboard_hwnd = None
+        self._clipboard_wndproc = None
 
     def start(self) -> None:
         if self._hook is not None:
@@ -316,26 +341,152 @@ class KeyboardCounter:
         if self._clipboard_thread is None:
             return
         self._clipboard_stop.set()
+        if self._clipboard_hwnd:
+            try:
+                user32 = ctypes.windll.user32
+                user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+                user32.PostMessageW(self._clipboard_hwnd, WM_CLOSE, 0, 0)
+            except OSError:
+                pass
         self._clipboard_thread.join(timeout=1.0)
         self._clipboard_thread = None
 
     def _monitor_clipboard_changes(self) -> None:
+        try:
+            event_monitor_started = self._monitor_clipboard_events()
+        except AttributeError:
+            event_monitor_started = False
+        if event_monitor_started:
+            return
+        self._monitor_clipboard_polling()
+
+    def _monitor_clipboard_events(self) -> bool:
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+        kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+        user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        user32.DefWindowProcW.restype = LRESULT
+        user32.RegisterClassW.argtypes = [ctypes.POINTER(WNDCLASSW)]
+        user32.RegisterClassW.restype = ctypes.c_ushort
+        user32.CreateWindowExW.argtypes = [
+            wintypes.DWORD,
+            wintypes.LPCWSTR,
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            wintypes.HWND,
+            wintypes.HMENU,
+            wintypes.HINSTANCE,
+            wintypes.LPVOID,
+        ]
+        user32.CreateWindowExW.restype = wintypes.HWND
+        user32.AddClipboardFormatListener.argtypes = [wintypes.HWND]
+        user32.AddClipboardFormatListener.restype = wintypes.BOOL
+        user32.RemoveClipboardFormatListener.argtypes = [wintypes.HWND]
+        user32.DestroyWindow.argtypes = [wintypes.HWND]
+        user32.PostQuitMessage.argtypes = [ctypes.c_int]
+        user32.GetMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT]
+        user32.GetMessageW.restype = wintypes.BOOL
+        user32.TranslateMessage.argtypes = [ctypes.POINTER(wintypes.MSG)]
+        user32.DispatchMessageW.argtypes = [ctypes.POINTER(wintypes.MSG)]
+        class_name = f"TypeLedgerClipboardMonitor{hex(id(self))}"
+
+        def window_proc(hwnd, message, wparam, lparam):
+            _ = (wparam, lparam)
+            if message == WM_CLIPBOARDUPDATE:
+                self._handle_clipboard_update()
+                return 0
+            if message == WM_CLOSE:
+                user32.DestroyWindow(hwnd)
+                return 0
+            if message == WM_DESTROY:
+                user32.PostQuitMessage(0)
+                return 0
+            return user32.DefWindowProcW(hwnd, message, wparam, lparam)
+
+        self._clipboard_wndproc = WNDPROC(window_proc)
+        hinstance = kernel32.GetModuleHandleW(None)
+        window_class = WNDCLASSW(
+            style=0,
+            lpfnWndProc=self._clipboard_wndproc,
+            cbClsExtra=0,
+            cbWndExtra=0,
+            hInstance=hinstance,
+            hIcon=None,
+            hCursor=None,
+            hbrBackground=None,
+            lpszMenuName=None,
+            lpszClassName=class_name,
+        )
+
+        try:
+            user32.RegisterClassW(ctypes.byref(window_class))
+            hwnd = user32.CreateWindowExW(
+                0,
+                class_name,
+                class_name,
+                0,
+                0,
+                0,
+                0,
+                0,
+                wintypes.HWND(HWND_MESSAGE),
+                None,
+                hinstance,
+                None,
+            )
+            if not hwnd:
+                return False
+            self._clipboard_hwnd = hwnd
+            if not user32.AddClipboardFormatListener(hwnd):
+                user32.DestroyWindow(hwnd)
+                self._clipboard_hwnd = None
+                return False
+
+            message = wintypes.MSG()
+            while not self._clipboard_stop.is_set():
+                result = user32.GetMessageW(ctypes.byref(message), None, 0, 0)
+                if result <= 0:
+                    break
+                user32.TranslateMessage(ctypes.byref(message))
+                user32.DispatchMessageW(ctypes.byref(message))
+            return True
+        except OSError:
+            return False
+        finally:
+            if self._clipboard_hwnd:
+                try:
+                    user32.RemoveClipboardFormatListener(self._clipboard_hwnd)
+                    user32.DestroyWindow(self._clipboard_hwnd)
+                except OSError:
+                    pass
+                self._clipboard_hwnd = None
+            self._clipboard_wndproc = None
+
+    def _monitor_clipboard_polling(self) -> None:
         while not self._clipboard_stop.wait(CLIPBOARD_POLL_INTERVAL_SECONDS):
-            try:
-                sequence = self._get_clipboard_sequence_number()
-                if sequence is None:
-                    continue
-                should_count = False
-                with self._lock:
-                    if sequence != self._last_clipboard_sequence:
-                        self._last_clipboard_sequence = sequence
-                        should_count = self.config.count_clipboard_changes
-                if should_count:
-                    self._record_clipboard_change(sequence)
-            except Exception:
-                # Clipboard ownership is inherently racy on Windows. A failed
-                # read should never stop keyboard counting or crash the app.
-                continue
+            self._handle_clipboard_update()
+
+    def _handle_clipboard_update(self) -> None:
+        try:
+            sequence = self._get_clipboard_sequence_number()
+            if sequence is None:
+                return
+            should_count = False
+            with self._lock:
+                if sequence != self._last_clipboard_sequence:
+                    self._last_clipboard_sequence = sequence
+                    should_count = self.config.count_clipboard_changes
+            if should_count:
+                self._record_clipboard_change(sequence)
+        except Exception:
+            # Clipboard ownership is inherently racy on Windows. A failed read
+            # should never stop keyboard counting or crash the app.
+            return
 
     def _record_clipboard_change(self, sequence: int | None) -> None:
         paste_count = self._resolve_clipboard_text_count(sequence)
@@ -371,14 +522,26 @@ class KeyboardCounter:
 
     def _get_clipboard_sequence_number(self) -> int | None:
         try:
-            sequence = ctypes.windll.user32.GetClipboardSequenceNumber()
+            user32 = ctypes.windll.user32
+            user32.GetClipboardSequenceNumber.restype = wintypes.DWORD
+            sequence = user32.GetClipboardSequenceNumber()
         except AttributeError:
             return None
         return int(sequence) if sequence else None
 
     def _get_clipboard_text(self) -> str | None:
-        user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
+        try:
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+        except AttributeError:
+            return None
+        user32.IsClipboardFormatAvailable.argtypes = [wintypes.UINT]
+        user32.IsClipboardFormatAvailable.restype = wintypes.BOOL
+        user32.OpenClipboard.argtypes = [wintypes.HWND]
+        user32.OpenClipboard.restype = wintypes.BOOL
+        user32.GetClipboardData.argtypes = [wintypes.UINT]
+        user32.GetClipboardData.restype = wintypes.HGLOBAL
+        user32.CloseClipboard.restype = wintypes.BOOL
         kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
         kernel32.GlobalLock.restype = wintypes.LPVOID
         kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
